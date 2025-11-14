@@ -1,36 +1,50 @@
 from bs4 import BeautifulSoup
 
-class HTMLParser:
-    def __init__(self):
-        pass
+class Parser:
 
-    def extract_text(self, html):
-        if html is None:
-            return "", ""
+    def __init__(self, use_lxml: bool = True):
+        self.use_lxml = use_lxml
 
+    def _make_soup(self, html: str):
+        parser_name = "lxml" if self.use_lxml else "html.parser"
         try:
-            soup = BeautifulSoup(html, "html.parser")
+            return BeautifulSoup(html or "", parser_name)
         except Exception:
+            return BeautifulSoup(html or "", "html.parser")
+
+    def extract_text(self, html: str):
+        """
+        Returns:
+            normal_text (str)
+            important_text (str)
+        """
+        if not html:
             return "", ""
 
-        # Remove unwanted tags
+        soup = self._make_soup(html)
+
         for tag in soup(["script", "style", "noscript", "header", "footer", "nav"]):
             tag.extract()
-            
+
+        # Important text: title, h1/h2/h3, bold/strong
         important_fragments = []
 
-        # Title
+        # <title>
         if soup.title and soup.title.string:
             important_fragments.append(soup.title.string)
 
         # Headings
-        for tag in ["h1", "h2", "h3"]:
-            for h in soup.find_all(tag):
-                important_fragments.append(h.get_text(separator=" ", strip=True))
+        for tag_name in ("h1", "h2", "h3"):
+            for h in soup.find_all(tag_name):
+                text = h.get_text(separator=" ", strip=True)
+                if text:
+                    important_fragments.append(text)
 
-        # Bold and strong
+        # Bold / strong text
         for b in soup.find_all(["b", "strong"]):
-            important_fragments.append(b.get_text(separator=" ", strip=True))
+            text = b.get_text(separator=" ", strip=True)
+            if text:
+                important_fragments.append(text)
 
         important_text = " ".join(important_fragments)
 
