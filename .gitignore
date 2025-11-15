@@ -7,6 +7,8 @@ developer/
 # Ignore index output
 indexer/partial_index/
 indexer/final_index/
+final_index.json
+partial_indexes/
 
 # Python cache
 __pycache__/
