@@ -10,7 +10,7 @@ class Tokenizer:
         self._token_pattern = re.compile(r"[A-Za-z0-9]+") 
 
     def _tokenize_with_weight(self, text: str, weight: int):
-        if not text:
+        if not text:  # Check if the input text is empty or None
             return []
 
         tokens = []
@@ -29,7 +29,7 @@ class Tokenizer:
         return result
 
     @staticmethod
-    def to_tf_counter(token_weight_pairs):
+    def to_tf_counter(token_weight_pairs): #
         tf = Counter()
         for token, weight in token_weight_pairs:
             tf[token] += weight

@@ -3,6 +3,7 @@ try:
     import ujson as json
 except ImportError:
     import json
+import json
 from urllib.parse import urldefrag
 
 class DataLoader:
@@ -33,6 +34,18 @@ class DataLoader:
                     continue
                 
                 file_path = file_entry.path
+        for domain_name in os.listdir(self.root_dir):
+            domain_path = os.path.join(self.root_dir, domain_name)
+
+            if not os.path.isdir(domain_path):
+                continue
+
+            # Walk the JSON files inside each domain folder
+            for filename in os.listdir(domain_path):
+                if not filename.endswith(".json"):
+                    continue
+
+                file_path = os.path.join(domain_path, filename)
 
                 try:
                     with open(file_path, "r", encoding="utf-8") as f:

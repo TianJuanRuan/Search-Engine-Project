@@ -19,6 +19,7 @@ def merge_partials(partial_dir: str, output_path: str = FINAL_PATH):
     merged_index = defaultdict(dict)
 
     merged_get = merged_index.get 
+    merged_index = defaultdict(lambda: defaultdict(int))
 
     for partial_file in partial_files:
         partial_data = load_partial(partial_file)
@@ -28,8 +29,12 @@ def merge_partials(partial_dir: str, output_path: str = FINAL_PATH):
                 existing.update(postings)
             else:
                 merged_index[term] = postings
+            for doc_id, tf in postings.items(): #doc id, term frequency
+                merged_index[term][doc_id] += tf
 
     merged_index = {term: dict(postings) for term, postings in merged_index.items()}
 
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(merged_index, f)
+        json.dump(merged_index, f)
+
