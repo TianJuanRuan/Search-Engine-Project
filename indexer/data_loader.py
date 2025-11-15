@@ -1,4 +1,8 @@
 import os
+try:
+    import ujson as json
+except ImportError:
+    import json
 import json
 from urllib.parse import urldefrag
 
@@ -17,6 +21,19 @@ class DataLoader:
         """
 
         # Walk subdirectories (domains)
+        root = self.root_dir
+
+        for domain_entry in os.scandir(root):
+            if not domain_entry.is_dir():
+                continue
+
+            domain_path = domain_entry.path
+
+            for file_entry in os.scandir(domain_path):
+                if not file_entry.name.endswith(".json"):
+                    continue
+                
+                file_path = file_entry.path
         for domain_name in os.listdir(self.root_dir):
             domain_path = os.path.join(self.root_dir, domain_name)
 

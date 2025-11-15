@@ -12,7 +12,7 @@ from indexer.tokenizer import Tokenizer
 class Indexer:
 
     def __init__(self, partial_index_dir="partial_indexes",
-                 flush_doc_threshold=15000):
+                 flush_doc_threshold=2000):
         self.partial_index_dir = partial_index_dir
         self.flush_doc_threshold = flush_doc_threshold
 
