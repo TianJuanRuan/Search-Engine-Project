@@ -25,8 +25,8 @@ def compute_m1_stats(final_index_path: str, total_docs: int):
     size_kb = os.path.getsize(final_index_path) / 1024
 
     print(f"Total indexed documents: {total_docs}")
-    print(f"Unique tokens:          {unique_tokens}")
-    print(f"Final index size:       {size_kb:.2f} KB")
+    print(f"Unique tokens: {unique_tokens}")
+    print(f"Final index size: {size_kb:.2f} KB")
 
 
 
@@ -46,10 +46,13 @@ def main():
     for doc_id, url, content, encoding in data_loader_instance.iter_documents():
         parsed_normal, parsed_important = parser_instance.extract_text(content)
         token_weight_pairs = tokenizer_instance.tokenize_normal_and_important(parsed_normal, parsed_important)
-        indexer_instance.add_document(doc_id, token_weight_pairs)
+
+        # FIXED LINE
+        indexer_instance.add_document(doc_id, url, token_weight_pairs)
 
         if doc_id % 500 == 0 and doc_id > 0:
             print(f"Processed {doc_id} documents...")
+
 
     # Flush indexing data
     indexer_instance.finalize()
