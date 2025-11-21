@@ -1,7 +1,6 @@
 import os
-
 try:
-    import ujson as json  
+    import ujson as json
 except ImportError:
     import json
 
@@ -11,10 +10,10 @@ from indexer.tokenizer import Tokenizer
 
 class Indexer:
 
-    def __init__(self, partial_index_dir="partial_indexes",
-                 flush_doc_threshold=2000):
+    def __init__(self, partial_index_dir="partial_indexes", flush_doc_threshold=2000):
         self.partial_index_dir = partial_index_dir
         self.flush_doc_threshold = flush_doc_threshold
+        self.doc_map = {}
 
         os.makedirs(self.partial_index_dir, exist_ok=True)
 
@@ -23,7 +22,10 @@ class Indexer:
         self.doc_count = 0
         self._docs_since_last_flush = 0
 
-    def add_document(self, doc_id: int, token_weight_pairs):
+    def add_document(self, doc_id: int, url: str, token_weight_pairs):
+
+        self.doc_map[doc_id] = url
+
         tf_counter = Tokenizer.to_tf_counter(token_weight_pairs)
 
         for token, tf in tf_counter.items():
@@ -36,29 +38,37 @@ class Indexer:
             self.flush_partial_index()
 
     def flush_partial_index(self):
+
         if not self.index:
             return
 
-        part_path = os.path.join(
+        path = os.path.join(
             self.partial_index_dir,
             f"partial_{self.partial_index_count}.json"
         )
 
-        serializable_index = {
+        serializable = {
             token: dict(postings)
             for token, postings in self.index.items()
         }
 
-        with open(part_path, "w", encoding="utf-8") as f:
-            json.dump(serializable_index, f)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(serializable, f)
 
-        print(f"[FLUSH] Wrote partial index #{self.partial_index_count} → {part_path}")
+        print(f"[FLUSH] Wrote partial index #{self.partial_index_count} → {path}")
 
         self.index.clear()
         self.partial_index_count += 1
         self._docs_since_last_flush = 0
 
     def finalize(self):
-
         if self.index:
             self.flush_partial_index()
+
+        # Save doc_map.json
+        with open("doc_map.json", "w", encoding="utf-8") as f:
+            json.dump(self.doc_map, f)
+
+        print(f"Saved doc_map.json with {len(self.doc_map)} entries.")
+
+
