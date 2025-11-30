@@ -1,4 +1,5 @@
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 
 class Parser:
 
@@ -12,42 +13,29 @@ class Parser:
         except Exception:
             return BeautifulSoup(html or "", "html.parser")
 
-    def extract_text(self, html: str):
-        """
-        Returns:
-            normal_text (str)
-            important_text (str)
-        """
+    def parse(self, html: str, base_url: str):
+        
         if not html:
-            return "", ""
+            return "", []
 
         soup = self._make_soup(html)
 
+        out_links = []
+        for a_tag in soup.find_all("a", href=True):
+            href = a_tag["href"]
+            anchor_text = a_tag.get_text(separator=" ", strip=True)
+            try:
+                absolute_url = urljoin(base_url, href)
+                absolute_url = absolute_url.split("#")[0]
+                
+                if absolute_url:
+                    out_links.append((absolute_url, anchor_text))
+            except (ValueError, Exception):
+                continue
+
         for tag in soup(["script", "style", "noscript", "header", "footer", "nav"]):
             tag.extract()
+            
+        text = soup.get_text(separator=" ", strip=True)
 
-        # Important text: title, h1/h2/h3, bold/strong
-        important_fragments = []
-
-        # <title>
-        if soup.title and soup.title.string:
-            important_fragments.append(soup.title.string)
-
-        # Headings
-        for tag_name in ("h1", "h2", "h3"):
-            for h in soup.find_all(tag_name):
-                text = h.get_text(separator=" ", strip=True)
-                if text:
-                    important_fragments.append(text)
-
-        # Bold / strong text
-        for b in soup.find_all(["b", "strong"]):
-            text = b.get_text(separator=" ", strip=True)
-            if text:
-                important_fragments.append(text)
-
-        important_text = " ".join(important_fragments)
-
-        normal_text = soup.get_text(separator=" ", strip=True)
-
-        return normal_text, important_text
+        return text, out_links

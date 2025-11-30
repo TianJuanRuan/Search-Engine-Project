@@ -10,7 +10,8 @@ TEST_QUERIES = [
 
 def main():
     engine = SearchEngine(
-        index_path="final_index.json",
+        index_path="final_index.txt",     
+        offset_path="index_offsets.json",
         doc_map_path="doc_map.json"
     )
 

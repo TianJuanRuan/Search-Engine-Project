@@ -1,97 +1,124 @@
 import os
 import json
-from collections import defaultdict
-
 from indexer.tokenizer import Tokenizer
 from .ranker import Ranker
 
-
 class SearchEngine:
     def __init__(self,
-                 index_path: str = "final_index.json",
+                 index_path: str = "final_index.txt",
+                 offset_path: str = "index_offsets.json",
                  doc_map_path: str = "doc_map.json"):
 
         if not os.path.exists(index_path):
             raise FileNotFoundError(f"Index file not found: {index_path}")
-        if not os.path.exists(doc_map_path):
-            raise FileNotFoundError(f"Doc map file not found: {doc_map_path}")
+        if not os.path.exists(offset_path):
+            raise FileNotFoundError(f"Offsets file not found: {offset_path}")
 
-        # Inverted index: {term: {doc_id_str: tf}}
-        with open(index_path, "r", encoding="utf-8") as f:
-            self.index = json.load(f)
+        print("Loading Index Offsets...")
+        with open(offset_path, "r", encoding="utf-8") as f:
+            self.term_offsets = json.load(f)
 
-        # Doc map: {doc_id_str: url}
+        print("Loading Doc Map for count...")
         with open(doc_map_path, "r", encoding="utf-8") as f:
-            self.doc_map = json.load(f)
+            doc_map = json.load(f)
+            self.N = len(doc_map)
 
-        self.N = len(self.doc_map)
+        self.index_file = open(index_path, "r", encoding="utf-8")
+
         self.tokenizer = Tokenizer()
-        self.ranker = Ranker(total_docs=self.N, doc_map=self.doc_map)
+        self.ranker = Ranker(total_docs=self.N, doc_map_path=doc_map_path)
 
-    def _tokenize_query(self, query: str):
-        """
-        Use the same tokenizer as indexing, returning stemmed token strings.
-        """
-        if not query:
-            return []
+    def __del__(self):
+        if hasattr(self, 'index_file'):
+            self.index_file.close()
 
-        pairs = self.tokenizer.tokenize_normal_and_important(query, "")
-        tokens = [t for (t, _w) in pairs]
+    def _get_postings(self, term):
+        if term not in self.term_offsets:
+            return None
+        
+        offset = self.term_offsets[term]
+        self.index_file.seek(offset)
+        line = self.index_file.readline()
+        
+        if not line: return None
+        data = json.loads(line)
+        return data["postings"]
 
-        # Deduplicate to avoid double-counting the same term
-        return list(dict.fromkeys(tokens))
+    def _check_phrase_match(self, doc_postings):
 
-    def search(self, query: str, k: int = 10):
-        """
-        Boolean AND retrieval with tf-idf ranking.
+        if not doc_postings: return set()
+        
+        common_docs = set(doc_postings[0].keys())
+        for p in doc_postings[1:]:
+            common_docs &= set(p.keys())
 
-        Only documents that contain ALL query terms are considered.
-        Those docs are ranked by tf-idf and the top-k are returned.
-        """
-        terms = self._tokenize_query(query)
-        if not terms:
-            return []
+        matched_docs = set()
 
-        # Gather postings for each term; enforce AND semantics.
-        term_postings = []  # list of (term, {doc_id_str: tf})
-        for t in terms:
-            postings = self.index.get(t)
-            if not postings:
-                # If any term is missing from the index, no doc contains all terms.
-                return []
-            term_postings.append((t, postings))
+        for doc_id in common_docs:
+            pos_lists = [doc_postings[i][doc_id] for i in range(len(doc_postings))]
+            
+            for p in pos_lists[0]:
+                if self._has_sequence(p, pos_lists[1:]):
+                    matched_docs.add(doc_id)
+                    break
+        
+        return matched_docs
 
-        # Compute intersection of doc IDs across all terms (AND)
-        first_term, first_postings = term_postings[0]
-        common_docs = set(first_postings.keys())
-        for _, postings in term_postings[1:]:
-            common_docs &= set(postings.keys())
+    def _has_sequence(self, current_pos, remaining_pos_lists):
+        if not remaining_pos_lists:
+            return True
+        
+        next_positions = remaining_pos_lists[0]
+        if (current_pos + 1) in next_positions:
+            return self._has_sequence(current_pos + 1, remaining_pos_lists[1:])
+        return False
 
-        if not common_docs:
-            return []
+    def search(self, query: str, k: int = 5):
+        if not query: return []
+        
+        is_phrase = False
+        stripped_query = query.strip()
+        if stripped_query.startswith('"') and stripped_query.endswith('"'):
+            is_phrase = True
+            stripped_query = stripped_query[1:-1] 
 
-        # Build per-doc total TF (sum of tfs over all query terms),
-        # and DF map per term for tf-idf.
-        doc_tf_total = defaultdict(int)
-        df_map = {}
+        tokens_with_pos, _ = self.tokenizer.tokenize(stripped_query)
+        query_terms = [] 
+        seen = set()
+        for t in tokens_with_pos:
+            if is_phrase:
+                query_terms.append(t[0])
+            else:
+                if t[0] not in seen:
+                    query_terms.append(t[0])
+                    seen.add(t[0])
 
-        for t, postings in term_postings:
-            df_map[t] = len(postings)  # df for this term in the collection
+        if not query_terms: return []
 
-            for doc_id_str in common_docs:
-                tf = postings.get(doc_id_str, 0)
-                if tf > 0:
-                    doc_id = int(doc_id_str)
-                    doc_tf_total[doc_id] += tf
+        term_data = [] 
+        phrase_postings_list = [] 
 
-        # Convert to postings list compatible with Ranker.compute_scores
-        postings_list = [
-            {"doc_id": doc_id, "tf": tf_total}
-            for doc_id, tf_total in doc_tf_total.items()
-        ]
+        for term in query_terms:
+            postings = self._get_postings(term)
+            if postings:
+                term_data.append((term, postings))
+                phrase_postings_list.append(postings)
+            else:
+                if is_phrase: return []
 
-        scores = self.ranker.compute_scores(list(df_map.keys()), postings_list, df_map)
+        if not term_data: return []
 
-        # Sort by score descending and take top-k
-        scores_sorted = sorted(scores, key=lambda x: x["score"], reverse=True)[:k]
-        return scores_sorted
+        if is_phrase:
+            valid_docs = self._check_phrase_match(phrase_postings_list)
+            if not valid_docs: return []
+            
+            filtered_term_data = []
+            for term, postings in term_data:
+                filtered = {d: pos for d, pos in postings.items() if d in valid_docs}
+                filtered_term_data.append((term, filtered))
+            term_data = filtered_term_data
+
+        scores = self.ranker.compute_scores(term_data, query_terms=query_terms)
+
+        top_k = sorted(scores, key=lambda x: x["score"], reverse=True)[:k]
+        return top_k

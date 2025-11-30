@@ -1,67 +1,81 @@
-from indexer import data_loader, parser, tokenizer, indexer, merger
+from indexer import data_loader, parser, tokenizer, indexer, merger, pagerank
 import os
 import json
 
-
 CORPUS_PATH = "DEV"
 PARTIAL_DIR = "partial_indexes"
-FINAL_INDEX_FILE = "final_index.json"
-
+FINAL_INDEX_FILE = "final_index.txt" 
 
 def compute_m1_stats(final_index_path: str, total_docs: int):
-    # Read the whole file as text
-    with open(final_index_path, "r", encoding="utf-8") as f:
-        text = f.read()
+    if not os.path.exists(final_index_path):
+        print(f"[WARN] Index file {final_index_path} not found.")
+        return
 
-    # Use low-level decoder to parse only the FIRST JSON object
-    decoder = json.JSONDecoder()
-    index, end_idx = decoder.raw_decode(text)
-
-    remaining = text[end_idx:].strip()
-    if remaining:
-        print(f"[WARN] Extra data after first JSON object in {final_index_path}, ignoring it.")
-
-    unique_tokens = len(index)
     size_kb = os.path.getsize(final_index_path) / 1024
+
+    unique_tokens = 0
+    with open(final_index_path, "r", encoding="utf-8") as f:
+        for line in f:
+            if line.strip(): 
+                unique_tokens += 1
 
     print(f"Total indexed documents: {total_docs}")
     print(f"Unique tokens: {unique_tokens}")
     print(f"Final index size: {size_kb:.2f} KB")
 
 
-
 def main():
-    # Load documents
-    print("Loading documents...")
-    data_loader_instance = data_loader.DataLoader(root_dir=CORPUS_PATH)
-    print("Documents loaded.")
-
-    parser_instance = parser.Parser(use_lxml=True)
-    tokenizer_instance = tokenizer.Tokenizer()
-    indexer_instance = indexer.Indexer()
-
+    print("Initializing...")
+    dl = data_loader.DataLoader(CORPUS_PATH)
+    parse = parser.Parser()
+    tok = tokenizer.Tokenizer()
+    idx = indexer.Indexer()
+    
     os.makedirs(PARTIAL_DIR, exist_ok=True)
+    idx.partial_index_dir = PARTIAL_DIR 
 
-    # Process each document
-    for doc_id, url, content, encoding in data_loader_instance.iter_documents():
-        parsed_normal, parsed_important = parser_instance.extract_text(content)
-        token_weight_pairs = tokenizer_instance.tokenize_normal_and_important(parsed_normal, parsed_important)
-
-        # FIXED LINE
-        indexer_instance.add_document(doc_id, url, token_weight_pairs)
-
-        if doc_id % 500 == 0 and doc_id > 0:
+    print("Loading documents...")
+    for doc_id, url, content, encoding in dl.iter_documents():
+        
+        if doc_id % 500 == 0:
             print(f"Processed {doc_id} documents...")
 
+        text, links = parse.parse(content, url)
+        
+        token_pos_pairs, fingerprint = tok.tokenize(text)
+        
+        if idx.is_duplicate(fingerprint):
+            continue
 
-    # Flush indexing data
-    indexer_instance.finalize()
+        idx.add_document(doc_id, url, token_pos_pairs, links)
+        
+    print("Documents loaded.")
 
-    #Merge partial indexes
-    merger.merge_partials(partial_dir=indexer_instance.partial_index_dir)
+    idx.finalize()
+    
+    merger.merge_partials(idx.partial_index_dir, output_path=FINAL_INDEX_FILE)
+    
+    pagerank.compute_pagerank()
 
-    compute_m1_stats(FINAL_INDEX_FILE, indexer_instance.doc_count)
+    print("Processing Anchor Text Index...")
+    if os.path.exists("anchor_text.json") and os.path.exists("doc_map.json"):
+        with open("anchor_text.json", "r", encoding="utf-8") as f:
+            anchor_data = json.load(f)
+        
+        url_to_id = {u: str(k) for k, u in idx.doc_map.items()}
+        
+        final_anchor_index = {}
+        for url, terms_list in anchor_data.items():
+            if url in url_to_id:
+                doc_id = url_to_id[url]
+                final_anchor_index[doc_id] = " ".join(terms_list)
+        
+        with open("anchor_index_ids.json", "w", encoding="utf-8") as f:
+            json.dump(final_anchor_index, f)
 
+    compute_m1_stats(FINAL_INDEX_FILE, idx.doc_count)
+    
+    print("Done!")
 
 if __name__ == "__main__":
     main()
