@@ -1,5 +1,8 @@
 from search.search_engine import SearchEngine
 import time
+from flask import Flask, render_template, request
+
+app = Flask(__name__)
 
 TEST_QUERIES = [
     "cristina lopes",
@@ -8,30 +11,31 @@ TEST_QUERIES = [
     "master of software engineering"
 ]
 
-def main():
+def search(query):
     engine = SearchEngine(
         index_path="final_index.txt",     
         offset_path="index_offsets.json",
         doc_map_path="doc_map.json"
     )
+    results = engine.search(query, k=5)
+    return results
 
-    query = ""
-    while query != "q!":
-        query = input("Enter your query (or 'q!' to quit): ")
-        start_time = time.time()
-        print(f"Query: {query}")
-        results = engine.search(query, k=5)
+@app.route("/", methods=["GET"])
+def index():
+    return render_template("index.html")
 
-        if not results:
-            print("  No results found.\n")
-            continue
 
-        for rank, r in enumerate(results, start=1):
-            print(f"  {rank}. doc_id={r['doc_id']} | score={r['score']:.4f}")
-            print(f"     URL: {r['url']}")
-        print(f"Search completed in {(time.time() - start_time) * 1000:.4f} milliseconds.\n")
+@app.route("/result", methods=["POST"])
+def result():
+    query = request.form.get("query")
     
-    print("Goodbye!")
+    #Run Search
+    start_time = time.time()
+    results = search(query)
+    total_time = (time.time() - start_time) * 1000
+
+    return render_template("result.html", user_text=query, search_time=total_time, results=results)
+
 if __name__ == "__main__":
-    main()
+    app.run()
 
