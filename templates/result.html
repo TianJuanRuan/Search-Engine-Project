@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Super Cool Search Result</title>
+</head>
+<body>
+    <h1>Query: {{ user_text }}</h1>
+
+    <p>Search Took {{ "%.4f"|format(search_time) }} milliseconds</p>
+
+    <ul>
+        {% if not results %}
+            <li>No results found.</li>
+        {% endif %}
+
+        {% for r in results %}
+            <li>
+                <strong>{{ loop.index }}.</strong>
+                doc_id = {{ r.doc_id }} | score = {{ "%.4f"|format(r.score) }}<br>
+                URL: <a href="{{ r.url }}" target="_blank">{{ r.url }}</a>
+            </li>
+        {% endfor %}
+    </ul>
+
+    <a href="/">Back</a>
+</body>
+</html>
