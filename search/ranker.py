@@ -35,9 +35,15 @@ class Ranker:
 
             for doc_id_str, positions in postings.items():
                 doc_id = int(doc_id_str)
-                tf = len(positions)
+                pos_list = positions["pos"]
+                imp_flag = positions.get("imp", 0)
+
+                tf = len(pos_list)
                 w_tf = 1 + math.log(tf, 10)
                 tfidf = w_tf * idf
+
+                if imp_flag == 1:
+                    tfidf *= 1.5   
 
                 if doc_id not in doc_scores:
                     doc_scores[doc_id] = 0.0

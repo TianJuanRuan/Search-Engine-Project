@@ -28,7 +28,7 @@ class Indexer:
         self.hashes.add(content_hash)
         return False
 
-    def add_document(self, doc_id: int, url: str, token_pos_list, out_links):
+    def add_document(self, doc_id, url, token_pos_list, out_links, important_words):
         self.doc_map[doc_id] = url
         
         clean_links = []
@@ -43,8 +43,12 @@ class Indexer:
 
         for token, pos in token_pos_list:
             if doc_id not in self.index[token]:
-                self.index[token][doc_id] = []
-            self.index[token][doc_id].append(pos)
+                self.index[token][doc_id] = {"pos": [], "imp": 0}
+
+            self.index[token][doc_id]["pos"].append(pos)
+
+            if token.split()[0] in important_words:  
+                self.index[token][doc_id]["imp"] = 1
 
         self.doc_count += 1
         self._docs_since_last_flush += 1

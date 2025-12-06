@@ -40,14 +40,14 @@ def main():
         if doc_id % 500 == 0:
             print(f"Processed {doc_id} documents...")
 
-        text, links = parse.parse(content, url)
+        text, links, important_words = parse.parse(content, url)
         
         token_pos_pairs, fingerprint = tok.tokenize(text)
         
         if idx.is_duplicate(fingerprint):
             continue
 
-        idx.add_document(doc_id, url, token_pos_pairs, links)
+        idx.add_document(doc_id, url, token_pos_pairs, links, important_words)
         
     print("Documents loaded.")
 
