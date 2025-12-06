@@ -2,6 +2,9 @@ import os
 import json
 from collections import defaultdict
 
+def hamming_distance(h1: int, h2: int) -> int:
+    return bin(h1 ^ h2).count("1")
+
 class Indexer:
     def __init__(self, partial_index_dir="partial_indexes", flush_doc_threshold=2000):
         self.partial_index_dir = partial_index_dir
@@ -22,11 +25,18 @@ class Indexer:
         
         self.graph_file = open("web_graph.txt", "w", encoding="utf-8")
 
-    def is_duplicate(self, content_hash: int) -> bool:
+    def is_duplicate(self, content_hash: int, near_threshold: int = 5) -> bool:
+        
         if content_hash in self.hashes:
             return True
+
+        for old_hash in self.hashes:
+            if hamming_distance(content_hash, old_hash) <= near_threshold:
+                return True
+
         self.hashes.add(content_hash)
         return False
+
 
     def add_document(self, doc_id, url, token_pos_list, out_links, important_words):
         self.doc_map[doc_id] = url
