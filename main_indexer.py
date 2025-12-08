@@ -44,7 +44,7 @@ def main():
         
         token_pos_pairs, fingerprint = tok.tokenize(text)
         
-        if idx.is_duplicate(fingerprint):
+        if idx.is_duplicate(fingerprint, near_threshold=5):
             continue
 
         idx.add_document(doc_id, url, token_pos_pairs, links, important_words)

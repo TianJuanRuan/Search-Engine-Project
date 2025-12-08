@@ -72,7 +72,7 @@ class SearchEngine:
         if (current_pos + 1) in next_positions:
             return self._has_sequence(current_pos + 1, remaining_pos_lists[1:])
         return False
-
+    
     def search(self, query: str, k: int = 5):
         if not query: return []
         
